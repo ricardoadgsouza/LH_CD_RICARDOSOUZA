@@ -1,0 +1,194 @@
+---
+title: "Lighthouse - Desafio"
+author: "Ricardo Augusto Dias Gonçalves Souza"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+# Inclui as bibliotecas necessárias
+
+library(tidyverse)
+library(ggplot2)
+library(performance)
+
+	
+# Lê os arquivos .csv corretamente
+
+test <- read_delim("cars_test.csv", delim = "\t", locale = locale(encoding = "UTF-16"), col_names = TRUE)
+train <- read_delim("cars_train.csv", delim = "\t", locale = locale(encoding = "UTF-16"), col_names = TRUE)
+
+
+```
+
+# Análise Exploratória de Dados.
+
+Começamos a análise exploratória observando as estatísticas descritivas de todas as variáveis
+
+```{r}
+
+summary(train)
+
+```
+
+Já de cara podemos observar que a variável "veículo_alienado" contém apenas NAs. O que significa que em um primeiro momento é sábio retirá-la do restante das análises e, principalmente, do modelo, dado que não terá influência nas demais variáveis e na variável preço(target).
+
+Também faz sentido verificar a correlação entre as variáveis numéricas e a variável preço. Podemos observar que o ano de fabricação e o hodômetro são as variáveis que mais impactam. A variável "id" é irrelevante aqui.
+
+Também já percebemos que vale retirar das análises a variável "ano_modelo" dado que é quase que um proxy de "ano_de_fabricacao", sendo menos straight-forward.
+
+```{r}
+
+numericos <- train[, sapply(train, is.numeric)]
+
+cor_preco <- cor(numericos)
+
+cor_preco <- cor_preco[,"preco"]
+
+cor_preco <- sort(cor_preco, decreasing = TRUE)
+
+print(cor_preco)
+```
+
+A correlação das variáveis citadas pode ser observada visualmente:
+
+Aqui podemos conferir que conforme o valor do hodometro aumenta, o preço cai. Conforme esperado e corroborado pelos dados
+
+```{r plot1}
+
+ggplot(train, aes(x = hodometro, y = preco)) +
+  geom_point() +
+  labs(title = "Correlação preco x hodometro")
+
+ 
+
+```
+
+Já quanto ao ano de fabricação, quanto mais novo for o veículo maior seu valor. Também conforme esperado.
+
+```{r}
+ggplot(train, aes(x = ano_de_fabricacao, y = preco)) +
+  geom_point() +
+  labs(title = "Correlação preco x ano de fabricação")
+```
+
+# Perguntas item 2)
+
+## 2) a) Qualo melhor estado cadastrado na base de dados para se vende rum carro de marca popular e por quê?
+
+Para responder essa pergunta, consideraremos que o "melhor estado" para se vender um carro é aquele que tem o preço médio maior. Entretanto, é necessário filtrar os dados apenas para carros populares primeiro.
+
+Utilizaremos dois critérios para selecionar carros populares.
+
+1.  A marca do automóvel
+
+2.  O valor, consideraremos apenas veículos com preço menor ou igual a R\$ 70.000
+
+Para isso filtramos pela coluna "marca".
+
+```{r 2a}
+
+
+
+carros_populares <- c("FIAT", "RENAULT", "PEUGEOT", "VOLKSWAGEN", "HYUNDAI")
+
+populares <- train %>%
+  filter(marca %in% carros_populares, preco <= 70000)
+  
+media_precos <- populares %>%
+  group_by(estado_vendedor) %>%
+  summarise(media_preco = mean(preco))
+
+
+# Descobrir o estado com o maior preço médio
+melhor_UF_venda <- media_precos$estado_vendedor[which.max(media_precos$media_preco)]
+
+
+# Descobrir o maior preço médio
+melhor_preco_venda <- media_precos$media_preco[which.max(media_precos$media_preco)]
+
+
+
+cat("O melhor estado para se vender um carro popular é então", melhor_UF_venda, "com preço médio de R$", melhor_preco_venda, "\n")
+```
+
+## 2) b) Qual o melhor estado para se comprar uma picape com transmissão automática e por quê?
+
+Parecido com a abordagem anterior, simplesmente filtraremos as colunas "tipo" e "cambio". Obs: Será considerada apenas a transmissão automática, não o cambio CVT
+
+```{r 2b}
+
+picapes <- train %>%
+  filter(tipo == "Picape", cambio == "Automática")
+
+media_compra <- picapes %>%
+  group_by(estado_vendedor) %>%
+  summarise(media_preco = mean(preco))
+
+
+# Descobrir o estado com o maior preço médio
+melhor_UF_compra <- media_compra$estado_vendedor[which.min(media_compra$media_preco)]
+
+
+# Descobrir o maior preço médio
+melhor_preco_compra <- media_compra$media_preco[which.min(media_compra$media_preco)]
+
+
+cat("O melhor estado para se comprar uma picape com transmissão automática é", melhor_UF_compra, "com preço médio de R$", melhor_preco_compra, "\n")
+
+```
+
+## 2) c) Qual o melhor estado para se comprar carros que ainda estejam dentro da garantia de fábrica e por quê?
+
+Novamente, iremos pela abordagem de filtrar os dados e então procurar pela UF com menor preço médio.
+
+Nesse caso precisamos apenas saber se o carro ainda está na garantia, o que pode ser feito pela coluna "garantia_de_fábrica"
+
+```{r 2c}
+
+garantia <- train %>%
+  filter(garantia_de_fábrica == "Garantia de fábrica")
+
+
+media_garantia <- garantia %>%
+  group_by(estado_vendedor) %>%
+  summarise(media_preco = mean(preco))
+
+
+# Descobrir o estado com o maior preço médio
+melhor_UF_garantia <- media_garantia$estado_vendedor[which.min(media_garantia$media_preco)]
+
+
+# Descobrir o maior preço médio
+melhor_preco_garantia <- media_garantia$media_preco[which.min(media_garantia$media_preco)]
+
+
+cat("O melhor estado para se comprar uma picape com transmissão automática é", melhor_UF_garantia, "com preço médio de R$", melhor_preco_garantia, "\n")
+
+
+```
+
+# Rodando o modelo
+
+```{r model}
+
+
+train_limpo <- train %>%
+  mutate(entrega_delivery = as.numeric(entrega_delivery), troca = as.numeric(troca), elegivel_revisao = as.numeric(elegivel_revisao))
+
+
+modelo_2 <- lm(preco ~ hodometro + ano_de_fabricacao + num_portas + entrega_delivery + troca, data = train)
+
+
+summary(modelo_2)
+
+
+
+
+
+```
